@@ -5,6 +5,7 @@ export function request(config){
         timeout:5000
     })
     instance.interceptors.request.use(config => {
+        config.headers.Authorization=window.sessionStorage.getItem('token')
         console.log('请求拦截器执行了');
             return config
         }, err => {

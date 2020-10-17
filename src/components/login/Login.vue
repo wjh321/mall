@@ -69,6 +69,7 @@ export default {
               center:true,
             })
             window.sessionStorage.setItem('token',res.data.token)
+            window.sessionStorage.setItem('username',res.data.username)
             console.log(window.sessionStorage.getItem('token').length);
             this.$router.push('home')
           }else{
