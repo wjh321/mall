@@ -1,10 +1,12 @@
 <template>
   <div>
+    <!-- 导航区域 -->
     <el-breadcrumb separator-class="el-icon-arrow-right">
       <el-breadcrumb-item :to="{ path: '/welcome' }">首页</el-breadcrumb-item>
       <el-breadcrumb-item>用户管理</el-breadcrumb-item>
       <el-breadcrumb-item>用户列表</el-breadcrumb-item>
     </el-breadcrumb>
+    <!--  卡片视图区域 -->
     <el-card>
       <!--  搜索与添加区域 -->
       <el-row>
@@ -26,10 +28,11 @@
       <!-- 用户数据列表区域 -->
       <el-table :data="userlist" stripe border>
         <el-table-column type="index" label="序号" width="50"></el-table-column>
-        <el-table-column prop="username" label="姓名" width="100"></el-table-column>
+        <el-table-column prop="username" label="用户名" width="100"></el-table-column>
+        <el-table-column prop="username" label="用户名" width="100"></el-table-column>
         <el-table-column prop="email" label="邮箱" width="200"></el-table-column>
         <el-table-column prop="mobile" label="电话" width="200"></el-table-column>
-        <el-table-column prop="role_name" label="权限" width="100"></el-table-column>
+        <el-table-column prop="role_name" label="角色" width="100"></el-table-column>
         <el-table-column prop="mg_state" label="状态" width="70">
           <template slot-scope="scope">
             <el-switch v-model="scope.row.mg_state" @change="statechange(scope.row)"></el-switch>
@@ -44,11 +47,7 @@
               <el-button size="mini" type="danger" @click="deleteUser(scope.row)">删除</el-button>
             </el-tooltip>
             <el-tooltip class="item" effect="dark" content="修改用户权限" placement="top">
-              <el-button
-                size="mini"
-                type="warning"
-                @click="handleAllot(scope.$index, scope.row)"
-              >分配角色</el-button>
+              <el-button size="mini" type="warning" @click="setRole(scope.row)">分配角色</el-button>
             </el-tooltip>
           </template>
         </el-table-column>
@@ -97,17 +96,17 @@
       </el-form>
 
       <span slot="footer" class="dialog-footer">
-        <el-button type="primary" @click="addUser">确 定</el-button>
+        <el-button type="primary" @click="add">确 定</el-button>
         <el-button @click="dialogVisible = false">取 消</el-button>
       </span>
     </el-dialog>
-        <!-- 修改用户信息的对话框 -->
+    <!-- 修改用户信息的对话框 -->
     <el-dialog
-      title="添加用户"
+      title="编辑用户信息"
       :visible.sync="dialogVisible1"
       width="50%"
       :before-close="handleClose"
-        @close="editDialogClose"
+      @close="editDialogClose"
     >
       <!-- 修改用户的form表单 -->
       <el-form :model="editForm" :rules="addRules" ref="editFormRef" label-width="70px">
@@ -130,6 +129,42 @@
         <el-button @click="dialogVisible1 = false">取 消</el-button>
       </span>
     </el-dialog>
+    <!--  分配用户角色的对话框 -->
+    <el-dialog
+      title="分配用户角色"
+      :visible.sync="dialogVisible2"
+      width="30%"
+      :before-close="handleClose"
+    >
+      <el-form :model="userInfo" :rules="addRules" ref="editFormRef" label-width="70px">
+        <!-- 用户名 -->
+        <el-form-item label="用户名">
+          <el-input v-model="userInfo.username" disabled></el-input>
+        </el-form-item>
+        <!--  邮箱 -->
+        <el-form-item label="角色">
+          <el-input v-model="userInfo.role_name" disabled></el-input>
+        </el-form-item>
+      </el-form>
+      <template>
+        <span>分配角色</span>
+        <el-select v-model="value" placeholder="请选择角色" size="small">
+          <el-option
+            v-for="item in rolesList"
+            :key="item.id"
+            :value="item.id"
+            :label="item.roleName"
+          ></el-option>
+        </el-select>
+      </template>
+      <span slot="footer" class="dialog-footer">
+        <el-button type="primary" @click="changeRole">确 定</el-button>
+        <el-button @click="dialogVisible2 = false">取 消</el-button>
+      </span>
+    </el-dialog>
+  </div>
+</template>
+      
   </div>
 </template>
 
@@ -140,8 +175,11 @@ import {
   addUser,
   deleteUser,
   getUserInfoById,
-  editUserInfo
+  editUserInfo,
+  editUserRole,
 } from "../../network/users";
+import { getRoles } from "../../network/rights";
+
 export default {
   name: "user",
   data() {
@@ -164,6 +202,7 @@ export default {
       }
     };
     return {
+      //展示条数，页数及搜索信息
       queryInfo: {
         //搜索关键字
         query: "",
@@ -172,15 +211,20 @@ export default {
         //每页显示几条数据
         pagesize: 5,
       },
+      //用户列表
       userlist: [],
+      //用户数量
       total: 0,
+      //添加用户对话框状态
       dialogVisible: false,
+      //添加用户的信息
       addForm: {
         username: "",
         password: "",
         email: "",
         mobile: "",
       },
+      //用户信息验证的规则
       addRules: {
         username: [
           { required: true, message: "请输入用户名", trigger: "blur" },
@@ -209,18 +253,27 @@ export default {
           { validator: checkPhone, trigger: "blur" },
         ],
       },
+      //修改用户信息对话框状态
       dialogVisible1: false,
-        editForm: {
+      //分配用户角色对话框状态
+      dialogVisible2: false,
+      //修改用户的信息
+      editForm: {
         username: "",
-        password: "",
         email: "",
         mobile: "",
-      }
+      },
+      //分配角色的用户信息
+      userInfo: {},
+      //所有的角色信息列表
+      rolesList: [],
+      value: "",
     };
   },
   created() {
     /* 获取用户数据信息 */
     getUsers(this.queryInfo).then((res) => {
+      console.log(res);
       this.toast(res);
     });
   },
@@ -287,69 +340,95 @@ export default {
       this.$refs.addFormRef.resetFields();
     },
     //添加用户
-    addUser() {
+    add() {
       this.$refs.addFormRef.validate((valid) => {
         if (!valid) return;
         addUser(this.addForm).then((res) => {
           console.log(res);
           if (res.meta.status !== 201) {
-            return this.$message({
-              message: "用户添加失败",
-              type: "error",
-              duration: 1000,
-              center: true,
-            });
-          } else this.dialogVisible = false;
+            return this.$message.error( "用户添加失败");
+          } else
+          getUsers(this.queryInfo).then((res) => {
+          this.userlist = res.data.users;
+          this.total = res.data.total;
+      });
+          this.dialogVisible = false;
           return this.$message.success("用户添加成功");
         });
       });
     },
     //根据ID获取用户信息
-    getUser(userInfo){
-      this.dialogVisible1=true
-      getUserInfoById(userInfo.id).then(res=>{
+    getUser(userInfo) {
+      this.dialogVisible1 = true;
+      getUserInfoById(userInfo.id).then((res) => {
         console.log(res);
-        this.editForm=res.data
-      })
+        this.editForm = res.data;
+      });
     },
     //修改用户信息
-    editUser(){
-    this.$refs.editFormRef.validate((valid)=>{
-      if(!valid) return;
-      console.log(this.editForm);
-      editUserInfo(this.editForm).then(res=>{
-        if(res.meta.status !== 200){return this.$message.error('用户信息更新失败')}
-        else this.dialogVisible1 = false;
-        return this.$message.success("用户信息更新成功");
-        
-      })
-    })
+    editUser() {
+      this.$refs.editFormRef.validate((valid) => {
+        if (!valid) return;
+        editUserInfo(this.editForm).then((res) => {
+          if (res.meta.status !== 200) {
+            return this.$message.error("用户信息更新失败");
+          } else this.dialogVisible1 = false;
+           getUsers(this.queryInfo).then((res) => {
+          this.userlist = res.data.users;
+          });
+          return this.$message.success("用户信息更新成功");
+        });
+      });
     },
     //清除修改用户的信息及验证信息
-    editDialogClose(){
+    editDialogClose() {
       this.$refs.editFormRef.resetFields();
     },
     //删除用户
     deleteUser(userInfo) {
       this.$confirm("确定讲永久删除次用户吗")
         .then((_) => {
-          deleteUser(userInfo.id)
-            .then((res) => {
-              console.log(res);
-              if (res.meta.status == 200) {
-            getUsers(this.queryInfo).then((res) => {
-              this.userlist = res.data.users;
-              this.total = res.data.total;
+          deleteUser(userInfo.id).then((res) => {
+            if (res.meta.status == 200) {
+              getUsers(this.queryInfo).then((res) => {
+                this.userlist = res.data.users;
+                this.total = res.data.total;
               });
-                return this.$message.success("用户删除成功");
-              }
-              return this.$message.error("用户删除失败");
-            })
+              return this.$message.success("用户删除成功");
+            }
+            return this.$message.error("用户删除失败");
+          });
         })
         .catch((err) => {
           console.log(err);
           return this.$message.error("取消删除");
         });
+    },
+    //展示分配角色提示框
+    setRole(userInfo) {
+      this.dialogVisible2 = !this.dialogVisible2;
+      this.userInfo = userInfo;
+      getRoles().then((res) => {
+        console.log(res);
+        this.rolesList = res.data;
+      });
+    },
+    //确定修改用户角色
+    changeRole() {
+      if (!this.value) {
+        return this.$mssage.error("请选择角色");
+      }
+      editUserRole(this.userInfo.id, this.value).then((res) => {
+        console.log(res);
+        if (res.meta.status == 200) {
+          getUsers(this.queryInfo).then((res) => {
+            this.userlist = res.data.users;
+          });
+          this.dialogVisible2 = !this.dialogVisible2;
+          return this.$message.success("角色设置成功");
+        }
+        return this.$message.error("角色设置失败");
+      });
     },
     //确认关闭提示窗口
     handleClose(done) {

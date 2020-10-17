@@ -54,3 +54,13 @@ export function editUserInfo(userInfo) {
         }       
     })
 }
+
+export function editUserRole(id,role) {
+    return request({
+        method:'put',
+        url: `users/${id}/role`,
+        data:{
+            rid:role   
+            }      
+    })
+}
